@@ -1,62 +1,96 @@
+"""Fixtures for QuickBars integration tests.
+
+Patches zeroconf/network and persistent notifications to avoid real I/O.
+"""
+
 from __future__ import annotations
 
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_HOST, CONF_PORT
+from homeassistant.core import HomeAssistant
+from unittest.mock import Mock, patch
+
 from tests.common import MockConfigEntry
 
 DOMAIN = "quickbars"
 
 
 @pytest.fixture
-def mock_bus_unsub(hass: HomeAssistant):
-    """Patch hass.bus.async_listen to return a callable we can assert on."""
-    unsub = MagicMock()
-    with patch.object(hass.bus, "async_listen", return_value=unsub):
+def mock_bus_unsub(hass):
+    from unittest.mock import Mock, patch
+
+    unsub = Mock(name="unsub")
+
+    # match EventBus.async_listen(self, event_type, callback) signature
+    def fake_async_listen(self, event_type, callback):
+        return unsub
+
+    with patch("homeassistant.core.EventBus.async_listen", new=fake_async_listen):
         yield unsub
 
 
 @pytest.fixture
 def patch_ws_ping():
     """Mock ws_ping used by the coordinator so setup succeeds without network."""
+    # Patch where it's used: the coordinator module inside your integration
     with patch(
-        "homeassistant.components.quickbars.__init__.ws_ping",
+        "homeassistant.components.quickbars.coordinator.ws_ping",
         AsyncMock(return_value=True),
     ):
         yield
 
 
-@pytest.fixture
-def patch_zeroconf_browser():
-    """
-    Avoid real Zeroconf network activity by patching AsyncServiceBrowser and
-    async_get_async_instance so Presence.start()/stop() is a no-op.
-    """
-    class _DummyBrowser:
-        async def async_cancel(self):
+@pytest.fixture(autouse=True)
+def patch_zeroconf():
+    """Prevent real zeroconf I/O and satisfy code paths in __init__."""
+
+    class _DummyAsyncZC:
+        def __init__(self):
+            # Provide a minimal attribute that looks like the real object
+            # (it won't be used because we stub the browser too)
+            self.zeroconf = object()
+
+        async def async_close(self):
+            pass
+
+        async def async_get_service_info(self, *args, **kwargs):
+            # Presence._handle_change awaits this; returning None = “not found”
             return None
 
-    dummy_aiozc = type("AioZC", (), {"zeroconf": object(), "async_get_service_info": AsyncMock(return_value=None)})
+    async def _fake_get_async_instance(_hass):
+        return _DummyAsyncZC()
 
-    with patch(
-        "homeassistant.components.quickbars.__init__.AsyncServiceBrowser",
-        return_value=_DummyBrowser(),
-    ), patch(
-        "homeassistant.components.quickbars.__init__.ha_zc.async_get_async_instance",
-        AsyncMock(return_value=dummy_aiozc),
+    class _DummyBrowser:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def async_cancel(self):
+            pass
+
+    with (
+        # IMPORTANT: patch **where your module uses it** (the package module, not “.__init__”)
+        patch(
+            "homeassistant.components.quickbars.ha_zc.async_get_async_instance",
+            side_effect=_fake_get_async_instance,
+        ),
+        patch(
+            "homeassistant.components.quickbars.AsyncServiceBrowser",
+            new=_DummyBrowser,
+        ),
     ):
         yield
 
 
+
 @pytest.fixture
 def mock_persistent_notification():
+    """Patch persistent_notification.async_create used by the integration."""
     with patch(
-        "homeassistant.components.quickbars.__init__.persistent_notification.async_create",
+        "homeassistant.components.quickbars.persistent_notification.async_create",
         autospec=True,
     ) as m:
         yield m
@@ -78,7 +112,6 @@ async def setup_integration(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
     patch_ws_ping,
-    patch_zeroconf_browser,
     mock_bus_unsub,
 ):
     """Add the entry and set up the integration; return the loaded entry."""
@@ -91,12 +124,13 @@ async def setup_integration(
 
 # ---------- Config flow client patches ----------
 
+
 @pytest.fixture
 def patch_client_all():
-    """
-    Patch QuickBarsClient methods used by the flow.
+    """Patch QuickBarsClient methods used by the flow.
 
-    NOTE: Patch where it's USED: homeassistant.components.quickbars.config_flow.QuickBarsClient
+    NOTE: Patch where it's USED:
+    homeassistant.components.quickbars.config_flow.QuickBarsClient
     """
     with patch(
         "homeassistant.components.quickbars.config_flow.QuickBarsClient", autospec=True
@@ -104,7 +138,12 @@ def patch_client_all():
         inst = cls.return_value
         inst.get_pair_code = AsyncMock(return_value={"sid": "pair-sid-xyz"})
         inst.confirm_pair = AsyncMock(
-            return_value={"id": "QB-1234", "name": "QuickBars TV", "port": 9123, "has_token": False}
+            return_value={
+                "id": "QB-1234",
+                "name": "QuickBars TV",
+                "port": 9123,
+                "has_token": False,
+            }
         )
         inst.set_credentials = AsyncMock(return_value={"ok": True})
         yield inst

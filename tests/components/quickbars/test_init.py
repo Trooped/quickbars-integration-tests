@@ -1,12 +1,14 @@
+"""Tests for QuickBars setup, unload, and removal behavior."""
+
 from __future__ import annotations
 
-from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntryState
+from homeassistant.core import HomeAssistant
 
-from .conftest import DOMAIN
 
-
-async def test_setup_and_unload_entry(hass: HomeAssistant, setup_integration, mock_bus_unsub):
+async def test_setup_and_unload_entry(
+    hass: HomeAssistant, setup_integration, mock_bus_unsub
+) -> None:
     """Integration loads & unloads cleanly and cancels the bus listener."""
     entry = setup_integration
     assert entry.state is ConfigEntryState.LOADED
@@ -21,7 +23,7 @@ async def test_setup_and_unload_entry(hass: HomeAssistant, setup_integration, mo
 
 async def test_remove_entry_posts_notification(
     hass: HomeAssistant, setup_integration, mock_persistent_notification
-):
+) -> None:
     """Deleting an entry shows the reminder via persistent_notification."""
     entry = setup_integration
     await hass.config_entries.async_remove(entry.entry_id)
