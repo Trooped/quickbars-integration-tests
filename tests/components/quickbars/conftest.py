@@ -5,14 +5,13 @@ Patches zeroconf/network and persistent notifications to avoid real I/O.
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant
-from unittest.mock import Mock, patch
 
 from tests.common import MockConfigEntry
 
@@ -21,8 +20,7 @@ DOMAIN = "quickbars"
 
 @pytest.fixture
 def mock_bus_unsub(hass):
-    from unittest.mock import Mock, patch
-
+    """Mock the EventBus listener unsubscription used by the integration."""
     unsub = Mock(name="unsub")
 
     # match EventBus.async_listen(self, event_type, callback) signature
@@ -83,7 +81,6 @@ def patch_zeroconf():
         ),
     ):
         yield
-
 
 
 @pytest.fixture
