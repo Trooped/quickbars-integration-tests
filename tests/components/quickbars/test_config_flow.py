@@ -973,7 +973,7 @@ async def test_user_flow_pair_updates_existing_entry(hass: HomeAssistant) -> Non
     assert updated.data[CONF_PORT] == 9123
 
 
-async def test_zeroconf_confirm_initial_form_renders(hass) -> None:
+async def test_zeroconf_confirm_initial_form_renders(hass: HomeAssistant) -> None:
     """Direct landing to zeroconf_confirm should render initial form."""
     flow = _cf.QuickBarsConfigFlow()
     flow.hass = hass
