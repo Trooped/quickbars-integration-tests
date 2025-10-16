@@ -22,8 +22,6 @@ DOMAIN = "quickbars"
 def mock_bus_unsub(hass: HomeAssistant):
     """Mock the EventBus listener unsubscription used by the integration."""
     unsub = Mock(name="unsub")
-
-    # match EventBus.async_listen(self, event_type, callback) signature
     def fake_async_listen(self, event_type, callback):
         return unsub
 
@@ -34,7 +32,6 @@ def mock_bus_unsub(hass: HomeAssistant):
 @pytest.fixture
 def patch_ws_ping():
     """Mock ws_ping used by the coordinator so setup succeeds without network."""
-    # Patch where it's used: the coordinator module inside your integration
     with patch(
         "homeassistant.components.quickbars.coordinator.ws_ping",
         AsyncMock(return_value=True),
@@ -45,18 +42,14 @@ def patch_ws_ping():
 @pytest.fixture(autouse=True)
 def patch_zeroconf():
     """Prevent real zeroconf I/O and satisfy code paths in __init__."""
-
     class _DummyAsyncZC:
         def __init__(self) -> None:
-            # Provide a minimal attribute that looks like the real object
-            # (it won't be used because we stub the browser too)
             self.zeroconf = object()
 
         async def async_close(self):
             pass
 
         async def async_get_service_info(self, *args, **kwargs):
-            # Presence._handle_change awaits this; returning None = “not found”
             return None
 
     async def _fake_get_async_instance(_hass):
@@ -70,7 +63,6 @@ def patch_zeroconf():
             pass
 
     with (
-        # IMPORTANT: patch **where your module uses it** (the package module, not “.__init__”)
         patch(
             "homeassistant.components.quickbars.ha_zc.async_get_async_instance",
             side_effect=_fake_get_async_instance,
@@ -120,7 +112,6 @@ async def setup_integration(
 
 
 # ---------- Config flow client patches ----------
-
 
 @pytest.fixture
 def patch_client_all():
