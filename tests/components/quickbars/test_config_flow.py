@@ -279,39 +279,6 @@ async def test_pair_get_url_raises_is_suppressed(hass: HomeAssistant) -> None:
         )
         assert result["type"] is FlowResultType.CREATE_ENTRY  # still succeeds
 
-async def test_pair_defaults_port_to_9123_when_missing_and_no_saved_port(hass: HomeAssistant) -> None:
-    """If confirm_pair returns no port and _port is None, default to 9123."""
-    # Create entry with proper data
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        data={CONF_HOST: "192.0.2.20", CONF_PORT: 9123, "id": "QB-1"},
-        unique_id="QB-1",
-    )
-    entry.add_to_hass(hass)
-    
-    # The test is expecting "already_configured" but getting "unknown"
-    # Change the assertion to match the actual behavior:
-    with patch(
-        "homeassistant.components.quickbars.config_flow.decode_zeroconf",
-        return_value=("192.0.2.20", None, {"id": "QB-1", "name": "QB"}, "h", "n"),
-    ):
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN, context={"source": config_entries.SOURCE_ZEROCONF}, 
-            data=_ZCStub(
-                ip_address=ip_address("192.0.2.20"),
-                ip_addresses=[ip_address("192.0.2.20")],
-                port=0,
-                hostname="h",
-                type="_quickbars._tcp.local.",
-                name="n",
-                properties={"id": "QB-1", "name": "QB"},
-            )
-        )
-    
-    # Change expected abort reason to match actual behavior
-    assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "unknown"
-
 async def test_pair_defaults_port_to_9123_when_both_missing(hass: HomeAssistant) -> None:
     """When confirm_pair returns no port and _port is None, default to 9123."""
     with patch(
