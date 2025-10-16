@@ -22,6 +22,7 @@ DOMAIN = "quickbars"
 def mock_bus_unsub(hass: HomeAssistant):
     """Mock the EventBus listener unsubscription used by the integration."""
     unsub = Mock(name="unsub")
+
     def fake_async_listen(self, event_type, callback):
         return unsub
 
@@ -42,6 +43,7 @@ def patch_ws_ping():
 @pytest.fixture(autouse=True)
 def patch_zeroconf():
     """Prevent real zeroconf I/O and satisfy code paths in __init__."""
+
     class _DummyAsyncZC:
         def __init__(self) -> None:
             self.zeroconf = object()
@@ -112,6 +114,7 @@ async def setup_integration(
 
 
 # ---------- Config flow client patches ----------
+
 
 @pytest.fixture
 def patch_client_all():

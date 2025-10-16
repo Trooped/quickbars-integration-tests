@@ -28,9 +28,11 @@ DOMAIN = "quickbars"
 # Helpers / fixtures
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class _ZCStub:
     """Minimal stand-in for ZeroconfServiceInfo."""
+
     ip_address: Any
     ip_addresses: list[Any]
     port: int
@@ -38,20 +40,30 @@ class _ZCStub:
     type: str
     name: str
     properties: dict[str, Any]
-    
-    def get(self, key: str, default=None): return getattr(self, key, default)
-    def __getitem__(self, key: str): return getattr(self, key)
+
+    def get(self, key: str, default=None):
+        return getattr(self, key, default)
+
+    def __getitem__(self, key: str):
+        return getattr(self, key)
 
 
 @pytest.fixture
 def patch_client_all():
     """Patch QuickBarsClient with sensible defaults."""
-    with patch("homeassistant.components.quickbars.config_flow.QuickBarsClient", autospec=True) as cls:
+    with patch(
+        "homeassistant.components.quickbars.config_flow.QuickBarsClient", autospec=True
+    ) as cls:
         inst = cls.return_value
         inst.get_pair_code = AsyncMock(return_value={"sid": "sid1"})
-        inst.confirm_pair = AsyncMock(return_value={
-            "id": "QB-1234", "name": "QuickBars TV", "port": 9123, "has_token": False
-        })
+        inst.confirm_pair = AsyncMock(
+            return_value={
+                "id": "QB-1234",
+                "name": "QuickBars TV",
+                "port": 9123,
+                "has_token": False,
+            }
+        )
         inst.set_credentials = AsyncMock(return_value={"ok": True})
         yield inst
 
@@ -59,11 +71,15 @@ def patch_client_all():
 async def _loaded_entry(hass: HomeAssistant) -> MockConfigEntry:
     """Create and load a config entry."""
     entry = MockConfigEntry(
-        domain=DOMAIN, title="QB", unique_id="QB-1234",
+        domain=DOMAIN,
+        title="QB",
+        unique_id="QB-1234",
         data={CONF_HOST: "192.0.2.10", CONF_PORT: 9123, "id": "QB-1234"},
     )
     entry.add_to_hass(hass)
-    with patch("homeassistant.components.quickbars.async_setup_entry", return_value=True):
+    with patch(
+        "homeassistant.components.quickbars.async_setup_entry", return_value=True
+    ):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
     assert entry.state is ConfigEntryState.LOADED
@@ -94,6 +110,7 @@ def create_zc_stub(ip="192.0.2.20", port=9123, props=None):
 # CONFIG FLOW TESTS
 # ---------------------------------------------------------------------------
 
+
 async def test_user_flow_success_paths(hass: HomeAssistant, patch_client_all) -> None:
     """Test both user flow paths - with and without token step."""
     # First test: Flow with token step
@@ -101,19 +118,19 @@ async def test_user_flow_success_paths(hass: HomeAssistant, patch_client_all) ->
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
     assert result["type"] is FlowResultType.FORM and result["step_id"] == "user"
-    
+
     # Submit host/port
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {CONF_HOST: "192.0.2.10", CONF_PORT: 9123}
     )
     assert result["type"] is FlowResultType.FORM and result["step_id"] == "pair"
-    
+
     # Submit pairing code
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"code": "1234"}
     )
     assert result["type"] is FlowResultType.FORM and result["step_id"] == "token"
-    
+
     # Submit token info
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"url": "http://ha.local:8123", "token": "abc123"}
@@ -123,19 +140,23 @@ async def test_user_flow_success_paths(hass: HomeAssistant, patch_client_all) ->
     assert data is not None
     assert data[CONF_HOST] == "192.0.2.10"
     assert data[CONF_PORT] == 9123
-    
+
     # Remove the entry before testing the second path
     await hass.config_entries.async_remove(result["result"].entry_id)
     await hass.async_block_till_done()
-    
+
     # Second test: Flow with token already set
     patch_client_all.confirm_pair.return_value.update({"has_token": True})
-    
+
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_HOST: "192.0.2.20", CONF_PORT: 9123}  # Use different IP to avoid duplicate
+        result["flow_id"],
+        {
+            CONF_HOST: "192.0.2.20",
+            CONF_PORT: 9123,
+        },  # Use different IP to avoid duplicate
     )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"code": "1234"}
@@ -149,15 +170,22 @@ async def test_user_flow_success_paths(hass: HomeAssistant, patch_client_all) ->
 
 async def test_user_flow_error_invalid_credentials(hass: HomeAssistant) -> None:
     """Test error when credentials are invalid at token step."""
-    with patch("homeassistant.components.quickbars.config_flow.QuickBarsClient", autospec=True) as cls:
+    with patch(
+        "homeassistant.components.quickbars.config_flow.QuickBarsClient", autospec=True
+    ) as cls:
         cls.return_value.get_pair_code = AsyncMock(return_value={"sid": "sid1"})
         cls.return_value.confirm_pair = AsyncMock(
-            return_value={"id": "QB-5555", "name": "QB", "port": 9123, "has_token": False}
+            return_value={
+                "id": "QB-5555",
+                "name": "QB",
+                "port": 9123,
+                "has_token": False,
+            }
         )
         cls.return_value.set_credentials = AsyncMock(
             return_value={"ok": False, "reason": "creds_invalid"}
         )
-        
+
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_USER}
         )
@@ -177,13 +205,20 @@ async def test_user_flow_error_invalid_credentials(hass: HomeAssistant) -> None:
 
 async def test_user_flow_error_tv_unreachable_at_token(hass: HomeAssistant) -> None:
     """Test error when TV becomes unreachable at token step."""
-    with patch("homeassistant.components.quickbars.config_flow.QuickBarsClient", autospec=True) as cls:
+    with patch(
+        "homeassistant.components.quickbars.config_flow.QuickBarsClient", autospec=True
+    ) as cls:
         cls.return_value.get_pair_code = AsyncMock(return_value={"sid": "sid1"})
         cls.return_value.confirm_pair = AsyncMock(
-            return_value={"id": "QB-6666", "name": "QB", "port": 9123, "has_token": False}
+            return_value={
+                "id": "QB-6666",
+                "name": "QB",
+                "port": 9123,
+                "has_token": False,
+            }
         )
         cls.return_value.set_credentials = AsyncMock(side_effect=ClientError("boom"))
-        
+
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_USER}
         )
@@ -200,13 +235,17 @@ async def test_user_flow_error_tv_unreachable_at_token(hass: HomeAssistant) -> N
         errors = result["errors"]
         assert errors is not None and errors["base"] == "tv_unreachable"
 
+
 # Split the error cases into separate tests to avoid flow interference
+
 
 async def test_user_flow_error_tv_unreachable(hass: HomeAssistant) -> None:
     """Test error handling when TV is unreachable."""
-    with patch("homeassistant.components.quickbars.config_flow.QuickBarsClient", autospec=True) as cls:
+    with patch(
+        "homeassistant.components.quickbars.config_flow.QuickBarsClient", autospec=True
+    ) as cls:
         cls.return_value.get_pair_code = AsyncMock(side_effect=TimeoutError)
-        
+
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_USER}
         )
@@ -217,12 +256,15 @@ async def test_user_flow_error_tv_unreachable(hass: HomeAssistant) -> None:
         errors = result["errors"]
         assert errors is not None and errors["base"] == "tv_unreachable"
 
+
 async def test_user_flow_error_no_unique_id(hass: HomeAssistant) -> None:
     """Test error when no unique ID is returned."""
-    with patch("homeassistant.components.quickbars.config_flow.QuickBarsClient", autospec=True) as cls:
+    with patch(
+        "homeassistant.components.quickbars.config_flow.QuickBarsClient", autospec=True
+    ) as cls:
         cls.return_value.get_pair_code = AsyncMock(return_value={"sid": "sid1"})
         cls.return_value.confirm_pair = AsyncMock(return_value={})  # No ID
-        
+
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_USER}
         )
@@ -241,15 +283,25 @@ async def test_edge_cases(hass: HomeAssistant) -> None:
     """Test edge cases in the config flow."""
     # Case 1: Missing URL in Home Assistant
     with (
-        patch("homeassistant.components.quickbars.config_flow.QuickBarsClient", autospec=True) as cls,
-        patch("homeassistant.components.quickbars.config_flow.get_url", 
-              side_effect=HomeAssistantError("no url")),
+        patch(
+            "homeassistant.components.quickbars.config_flow.QuickBarsClient",
+            autospec=True,
+        ) as cls,
+        patch(
+            "homeassistant.components.quickbars.config_flow.get_url",
+            side_effect=HomeAssistantError("no url"),
+        ),
     ):
         cls.return_value.get_pair_code = AsyncMock(return_value={"sid": "sid1"})
         cls.return_value.confirm_pair = AsyncMock(
-            return_value={"id": "QB-8888", "name": "QB", "port": 9123, "has_token": True}
+            return_value={
+                "id": "QB-8888",
+                "name": "QB",
+                "port": 9123,
+                "has_token": True,
+            }
         )
-        
+
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_USER}
         )
@@ -261,14 +313,21 @@ async def test_edge_cases(hass: HomeAssistant) -> None:
         )
         # Should still succeed despite missing URL
         assert result["type"] is FlowResultType.CREATE_ENTRY
-    
+
     # Case 2: Default port when missing
-    with patch("homeassistant.components.quickbars.config_flow.QuickBarsClient", autospec=True) as cls:
+    with patch(
+        "homeassistant.components.quickbars.config_flow.QuickBarsClient", autospec=True
+    ) as cls:
         cls.return_value.get_pair_code = AsyncMock(return_value={"sid": "sid1"})
         cls.return_value.confirm_pair = AsyncMock(
-            return_value={"id": "QB-7777", "name": "QB", "port": None, "has_token": True}
+            return_value={
+                "id": "QB-7777",
+                "name": "QB",
+                "port": None,
+                "has_token": True,
+            }
         )
-        
+
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_USER}
         )
@@ -286,34 +345,55 @@ async def test_edge_cases(hass: HomeAssistant) -> None:
 async def test_zeroconf_flows(hass: HomeAssistant, patch_client_all) -> None:
     """Test zeroconf discovery flows."""
     # Standard flow - discover and pair
-    zc = create_zc_stub(ip="192.0.2.20", props={"id": "QB-9999", "api": "1", 
-                                               "app_version": "1.2.3", "name": "QuickBars TV"})
-    
-    with patch("homeassistant.components.quickbars.config_flow.decode_zeroconf",
-               return_value=(
-                   "192.0.2.20", 9123,
-                   {"id": "QB-9999", "api": "1", "app_version": "1.2.3", "name": "QuickBars TV"},
-                   "QuickBars-9999.local.", "QuickBars-9999._quickbars._tcp.local."
-               )):
+    zc = create_zc_stub(
+        ip="192.0.2.20",
+        props={
+            "id": "QB-9999",
+            "api": "1",
+            "app_version": "1.2.3",
+            "name": "QuickBars TV",
+        },
+    )
+
+    with patch(
+        "homeassistant.components.quickbars.config_flow.decode_zeroconf",
+        return_value=(
+            "192.0.2.20",
+            9123,
+            {
+                "id": "QB-9999",
+                "api": "1",
+                "app_version": "1.2.3",
+                "name": "QuickBars TV",
+            },
+            "QuickBars-9999.local.",
+            "QuickBars-9999._quickbars._tcp.local.",
+        ),
+    ):
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_ZEROCONF}, data=zc
         )
-    assert result["type"] is FlowResultType.FORM and result["step_id"] == "zeroconf_confirm"
-    
+    assert (
+        result["type"] is FlowResultType.FORM
+        and result["step_id"] == "zeroconf_confirm"
+    )
+
     # Re-enter the confirm step with None to test the getattr/fallback logic (lines 230-236)
     result_reentry = await hass.config_entries.flow.async_configure(result["flow_id"])
     assert result_reentry["type"] is FlowResultType.FORM
     assert result_reentry["step_id"] == "zeroconf_confirm"
-    
+
     # Update the patch_client_all mock to use the new unique_id
     patch_client_all.confirm_pair.return_value.update({"id": "QB-9999"})
-    
+
     # Confirm discovery
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     assert result["type"] is FlowResultType.FORM and result["step_id"] == "pair"
-    
+
     # Complete pairing
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"code": "9999"})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"code": "9999"}
+    )
     if result["type"] is FlowResultType.FORM:
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], {"url": "http://ha.local:8123", "token": "abc123"}
@@ -325,27 +405,37 @@ async def test_zeroconf_updates_existing_entry(hass: HomeAssistant) -> None:
     """Test that zeroconf discovery updates an existing entry."""
     # Create an entry to be updated
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id="QB-1234",
+        domain=DOMAIN,
+        unique_id="QB-1234",
         data={CONF_HOST: "192.0.2.10", CONF_PORT: 9123, "id": "QB-1234"},
     )
     entry.add_to_hass(hass)
-    
+
     # Create a discovery with new IP/port
     zc = create_zc_stub(ip="192.0.2.55", port=9999)
-    
-    with patch("homeassistant.components.quickbars.config_flow.decode_zeroconf",
-               return_value=(
-                   "192.0.2.55", 9999,
-                   {"id": "QB-1234", "api": "1", "app_version": "1.2.3", "name": "QuickBars TV"},
-                   "QuickBars-1234.local.", "QuickBars-1234._quickbars._tcp.local."
-               )):
+
+    with patch(
+        "homeassistant.components.quickbars.config_flow.decode_zeroconf",
+        return_value=(
+            "192.0.2.55",
+            9999,
+            {
+                "id": "QB-1234",
+                "api": "1",
+                "app_version": "1.2.3",
+                "name": "QuickBars TV",
+            },
+            "QuickBars-1234.local.",
+            "QuickBars-1234._quickbars._tcp.local.",
+        ),
+    ):
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_ZEROCONF}, data=zc
         )
-    
+
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
-    
+
     # Get the updated entry
     updated = hass.config_entries.async_get_entry(entry.entry_id)
     assert updated is not None
@@ -369,24 +459,36 @@ async def test_zeroconf_error_cases(hass: HomeAssistant) -> None:
         DOMAIN, context={"source": config_entries.SOURCE_ZEROCONF}, data=zc
     )
     assert result["type"] is FlowResultType.ABORT and result["reason"] == "unknown"
-    
+
     # Case 2: TV unreachable after confirm
     zc = create_zc_stub(ip="1.2.3.4")
-    
+
     with (
-        patch("homeassistant.components.quickbars.config_flow.decode_zeroconf",
-              return_value=("1.2.3.4", 9123, 
-                           {"id": "QB-1234", "api": "1", "app_version": "1.2.3", "name": "QB"}, 
-                           "h", "n")),
-        patch("homeassistant.components.quickbars.config_flow.QuickBarsClient", autospec=True) as cls,
+        patch(
+            "homeassistant.components.quickbars.config_flow.decode_zeroconf",
+            return_value=(
+                "1.2.3.4",
+                9123,
+                {"id": "QB-1234", "api": "1", "app_version": "1.2.3", "name": "QB"},
+                "h",
+                "n",
+            ),
+        ),
+        patch(
+            "homeassistant.components.quickbars.config_flow.QuickBarsClient",
+            autospec=True,
+        ) as cls,
     ):
         cls.return_value.get_pair_code = AsyncMock(side_effect=OSError("down"))
-        
+
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_ZEROCONF}, data=zc
         )
-        assert result["type"] is FlowResultType.FORM and result["step_id"] == "zeroconf_confirm"
-        
+        assert (
+            result["type"] is FlowResultType.FORM
+            and result["step_id"] == "zeroconf_confirm"
+        )
+
         result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
         assert result["type"] is FlowResultType.FORM and result["step_id"] == "user"
         errors = result["errors"]
@@ -397,6 +499,7 @@ async def test_zeroconf_error_cases(hass: HomeAssistant) -> None:
 # OPTIONS FLOW TESTS
 # ---------------------------------------------------------------------------
 
+
 async def test_options_flow(hass: HomeAssistant) -> None:
     """Test options flow success and error cases."""
     entry = await _loaded_entry(hass)
@@ -404,50 +507,66 @@ async def test_options_flow(hass: HomeAssistant) -> None:
         "entities": [{"id": "light.kitchen", "isSaved": True}],
         "quick_bars": [{"name": "Main"}],
     }
-    
+
     # Case 1: TV unreachable at init (ping fails)
-    with patch("homeassistant.components.quickbars.config_flow.ws_ping",
-               AsyncMock(return_value=False)):
+    with patch(
+        "homeassistant.components.quickbars.config_flow.ws_ping",
+        AsyncMock(return_value=False),
+    ):
         res = await hass.config_entries.options.async_init(entry.entry_id)
         assert res["type"] is FlowResultType.FORM and res["step_id"] == "expose"
         errors = res["errors"]
         assert errors is not None and errors["base"] == "tv_unreachable"
-    
+
     # Case 2: TV unreachable at init (ping exception)
-    with patch("homeassistant.components.quickbars.config_flow.ws_ping",
-               AsyncMock(side_effect=Exception("boom"))):
+    with patch(
+        "homeassistant.components.quickbars.config_flow.ws_ping",
+        AsyncMock(side_effect=Exception("boom")),
+    ):
         res = await hass.config_entries.options.async_init(entry.entry_id)
         assert res["type"] is FlowResultType.FORM and res["step_id"] == "expose"
         errors = res["errors"]
         assert errors is not None and errors["base"] == "tv_unreachable"
-    
+
     # Case 3: TV unreachable at init (snapshot exception)
     with (
-        patch("homeassistant.components.quickbars.config_flow.ws_ping",
-              AsyncMock(return_value=True)),
-        patch("homeassistant.components.quickbars.config_flow.ws_get_snapshot",
-              AsyncMock(side_effect=Exception("down"))),
+        patch(
+            "homeassistant.components.quickbars.config_flow.ws_ping",
+            AsyncMock(return_value=True),
+        ),
+        patch(
+            "homeassistant.components.quickbars.config_flow.ws_get_snapshot",
+            AsyncMock(side_effect=Exception("down")),
+        ),
     ):
         res = await hass.config_entries.options.async_init(entry.entry_id)
         assert res["type"] is FlowResultType.FORM and res["step_id"] == "expose"
         errors = res["errors"]
         assert errors is not None and errors["base"] == "tv_unreachable"
-    
+
     # Case 4: Expose error during entity update
     with (
-        patch("homeassistant.components.quickbars.config_flow.ws_ping",
-              AsyncMock(return_value=True)),
-        patch("homeassistant.components.quickbars.config_flow.ws_get_snapshot",
-              AsyncMock(return_value=snapshot)),
+        patch(
+            "homeassistant.components.quickbars.config_flow.ws_ping",
+            AsyncMock(return_value=True),
+        ),
+        patch(
+            "homeassistant.components.quickbars.config_flow.ws_get_snapshot",
+            AsyncMock(return_value=snapshot),
+        ),
     ):
         res = await hass.config_entries.options.async_init(entry.entry_id)
         assert res["type"] is FlowResultType.FORM and res["step_id"] == "expose"
-    
+
     with (
-        patch("homeassistant.components.quickbars.config_flow.map_entity_display_names",
-              side_effect=lambda hass, ids: {i: i for i in ids}),
-        patch("homeassistant.components.quickbars.config_flow.ws_entities_replace",
-              AsyncMock(side_effect=Exception("down"))),
+        patch(
+            "homeassistant.components.quickbars.config_flow.map_entity_display_names",
+            side_effect=lambda hass, ids: {i: i for i in ids},
+        ),
+        patch(
+            "homeassistant.components.quickbars.config_flow.ws_entities_replace",
+            AsyncMock(side_effect=Exception("down")),
+        ),
     ):
         res = await hass.config_entries.options.async_configure(
             res["flow_id"], user_input={"saved": ["light.kitchen"]}
@@ -455,21 +574,29 @@ async def test_options_flow(hass: HomeAssistant) -> None:
         assert res["type"] is FlowResultType.FORM and res["step_id"] == "expose"
         errors = res["errors"]
         assert errors is not None and errors["base"] == "tv_unreachable"
-    
+
     # Case 5: Successful flow
     with (
-        patch("homeassistant.components.quickbars.config_flow.ws_ping",
-              AsyncMock(return_value=True)),
-        patch("homeassistant.components.quickbars.config_flow.ws_get_snapshot",
-              AsyncMock(return_value=snapshot)),
-        patch("homeassistant.components.quickbars.config_flow.map_entity_display_names",
-              side_effect=lambda hass, ids: {i: f"Friendly {i}" for i in ids}),
-        patch("homeassistant.components.quickbars.config_flow.ws_entities_replace",
-              AsyncMock(return_value=True)),
+        patch(
+            "homeassistant.components.quickbars.config_flow.ws_ping",
+            AsyncMock(return_value=True),
+        ),
+        patch(
+            "homeassistant.components.quickbars.config_flow.ws_get_snapshot",
+            AsyncMock(return_value=snapshot),
+        ),
+        patch(
+            "homeassistant.components.quickbars.config_flow.map_entity_display_names",
+            side_effect=lambda hass, ids: {i: f"Friendly {i}" for i in ids},
+        ),
+        patch(
+            "homeassistant.components.quickbars.config_flow.ws_entities_replace",
+            AsyncMock(return_value=True),
+        ),
     ):
         res = await hass.config_entries.options.async_init(entry.entry_id)
         assert res["type"] is FlowResultType.FORM and res["step_id"] == "expose"
-        
+
         res = await hass.config_entries.options.async_configure(
             res["flow_id"], user_input={"saved": ["light.kitchen", "switch.fan"]}
         )
