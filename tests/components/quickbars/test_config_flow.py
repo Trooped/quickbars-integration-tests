@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from ipaddress import ip_address
 from typing import Any
 from unittest.mock import AsyncMock, patch
-import pytest
 
 from aiohttp import ClientError
+import pytest
 
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_PORT
@@ -19,6 +19,7 @@ from homeassistant.exceptions import HomeAssistantError
 from tests.common import MockConfigEntry
 
 DOMAIN = "quickbars"
+
 
 @dataclass
 class _ZCStub:
@@ -37,6 +38,7 @@ class _ZCStub:
 
     def __getitem__(self, key: str):
         return getattr(self, key)
+
 
 def create_zc_stub(ip="192.0.2.20", port=9123, props=None):
     """Create a zeroconf stub with standard values."""
@@ -57,25 +59,26 @@ def create_zc_stub(ip="192.0.2.20", port=9123, props=None):
         properties=props,
     )
 
+
 @pytest.fixture(autouse=True)
 def _bypass_quickbars_setup():
     """Don’t run the real integration setup during config flow tests."""
     with (
         patch("homeassistant.components.quickbars.async_setup", return_value=True),
-        patch("homeassistant.components.quickbars.async_setup_entry", return_value=True),
+        patch(
+            "homeassistant.components.quickbars.async_setup_entry", return_value=True
+        ),
     ):
         yield
+
 
 async def test_user_flow_with_token_step(hass: HomeAssistant, patch_client_all) -> None:
     """Test user flow that requires setting up a token."""
     # Configure the mock to return has_token=False
-    patch_client_all.confirm_pair.return_value.update({
-        "id": "QB-1234",
-        "name": "QuickBars TV",
-        "port": 9123,
-        "has_token": False
-    })
-    
+    patch_client_all.confirm_pair.return_value.update(
+        {"id": "QB-1234", "name": "QuickBars TV", "port": 9123, "has_token": False}
+    )
+
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
@@ -104,16 +107,20 @@ async def test_user_flow_with_token_step(hass: HomeAssistant, patch_client_all) 
     assert data[CONF_PORT] == 9123
 
 
-async def test_user_flow_without_token_step(hass: HomeAssistant, patch_client_all) -> None:
+async def test_user_flow_without_token_step(
+    hass: HomeAssistant, patch_client_all
+) -> None:
     """Test user flow when token is already set."""
     # Configure the mock to return has_token=True and a different unique_id
-    patch_client_all.confirm_pair.return_value.update({
-        "id": "QB-5678",  # Different ID to avoid conflicts
-        "name": "QuickBars TV",
-        "port": 9123,
-        "has_token": True
-    })
-    
+    patch_client_all.confirm_pair.return_value.update(
+        {
+            "id": "QB-5678",  # Different ID to avoid conflicts
+            "name": "QuickBars TV",
+            "port": 9123,
+            "has_token": True,
+        }
+    )
+
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
@@ -124,7 +131,7 @@ async def test_user_flow_without_token_step(hass: HomeAssistant, patch_client_al
         result["flow_id"], {CONF_HOST: "192.0.2.20", CONF_PORT: 9123}
     )
     assert result["type"] is FlowResultType.FORM and result["step_id"] == "pair"
-    
+
     # Submit pairing code - should create entry directly since has_token=True
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"code": "1234"}
@@ -201,6 +208,7 @@ async def test_user_flow_error_tv_unreachable_at_token(hass: HomeAssistant) -> N
         assert result["type"] is FlowResultType.FORM and result["step_id"] == "token"
         errors = result["errors"]
         assert errors is not None and errors["base"] == "tv_unreachable"
+
 
 async def test_user_flow_error_tv_unreachable(hass: HomeAssistant) -> None:
     """Test error handling when TV is unreachable."""
