@@ -17,7 +17,6 @@ from tests.common import MockConfigEntry
 
 DOMAIN = "quickbars"
 
-
 @pytest.fixture
 def mock_bus_unsub(hass: HomeAssistant):
     """Mock the EventBus listener unsubscription used by the integration."""
@@ -29,7 +28,6 @@ def mock_bus_unsub(hass: HomeAssistant):
     with patch("homeassistant.core.EventBus.async_listen", new=fake_async_listen):
         yield unsub
 
-
 @pytest.fixture
 def patch_ws_ping():
     """Mock ws_ping used by the coordinator so setup succeeds without network."""
@@ -38,7 +36,6 @@ def patch_ws_ping():
         AsyncMock(return_value=True),
     ):
         yield
-
 
 @pytest.fixture(autouse=True)
 def patch_zeroconf():
@@ -76,7 +73,6 @@ def patch_zeroconf():
     ):
         yield
 
-
 @pytest.fixture
 def mock_persistent_notification():
     """Patch persistent_notification.async_create used by the integration."""
@@ -85,7 +81,6 @@ def mock_persistent_notification():
         autospec=True,
     ) as m:
         yield m
-
 
 @pytest.fixture
 def mock_config_entry() -> MockConfigEntry:
@@ -96,7 +91,6 @@ def mock_config_entry() -> MockConfigEntry:
         unique_id="QB-1234",
         data={CONF_HOST: "192.0.2.10", CONF_PORT: 9123, "id": "QB-1234"},
     )
-
 
 @pytest.fixture
 async def setup_integration(
@@ -111,10 +105,6 @@ async def setup_integration(
     await hass.async_block_till_done()
     assert mock_config_entry.state is ConfigEntryState.LOADED
     return mock_config_entry
-
-
-# ---------- Config flow client patches ----------
-
 
 @pytest.fixture
 def patch_client_all():

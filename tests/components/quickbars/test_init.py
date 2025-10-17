@@ -5,7 +5,6 @@ from __future__ import annotations
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 
-
 async def test_setup_and_unload_entry(
     hass: HomeAssistant, setup_integration, mock_bus_unsub
 ) -> None:
