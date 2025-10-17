@@ -138,3 +138,4 @@ def patch_client_all():
         )
         inst.set_credentials = AsyncMock(return_value={"ok": True})
         yield inst
+
